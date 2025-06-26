@@ -1,5 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Voice from '@react-native-voice/voice';
 import * as Speech from 'expo-speech';
 import React, { useEffect, useState } from 'react';
 import {
@@ -9,8 +10,7 @@ import {
   Dimensions,
   FlatList,
   Linking,
-  Modal,
-  RefreshControl,
+  Modal, PermissionsAndroid, Platform, RefreshControl,
   ScrollView,
   Share,
   StyleSheet,
@@ -20,12 +20,10 @@ import {
   View
 } from 'react-native';
 
-
-
 type Conseil = {
   id: string;
   category: 'nutrition' | 'activite' | 'education' | 'prevention';
-  disease: 'diabete' | 'hypertension' | 'vih' | 'general';
+  disease: Disease;
   title: string;
   description: string;
   points: number;
@@ -40,11 +38,50 @@ type Quiz = {
   question: string;
   options: string[];
   correctAnswer: string;
-  disease: 'diabete' | 'hypertension' | 'vih' | 'general';
+  disease: Disease;
   explanation: string;
   points: number;
   timeLimit?: number;
 };
+
+type Disease = 
+  | 'diabete'
+  | 'hypertension'
+  | 'insuffisance-cardiaque'
+  | 'atherosclerose'
+  | 'maladie-coronarienne'
+  | 'asthme'
+  | 'bpco'
+  | 'fibrose-pulmonaire'
+  | 'hypothyroidie'
+  | 'hyperthyroidie'
+  | 'obesite'
+  | 'insuffisance-renale'
+  | 'nephropathie-diabetique'
+  | 'parkinson'
+  | 'sclerose-en-plaques'
+  | 'epilepsie'
+  | 'migraine-chronique'
+  | 'lupus'
+  | 'polyarthrite-rhumatoide'
+  | 'crohn'
+  | 'colite-ulcereuse'
+  | 'cancer-sein'
+  | 'cancer-prostate'
+  | 'cancer-poumon'
+  | 'leucemie'
+  | 'arthrose'
+  | 'osteoporose'
+  | 'fibromyalgie'
+  | 'depression'
+  | 'troubles-anxieux'
+  | 'schizophrenie'
+  | 'trouble-bipolaire'
+  | 'cirrhose'
+  | 'psoriasis'
+  | 'endometriose'
+  | 'vih'
+  | 'general';
 
 type Badge = {
   id: string;
@@ -89,7 +126,7 @@ export default function ConseilsSante() {
   const [completedQuizzes, setCompletedQuizzes] = useState<string[]>([]);
   const [favoriteConseils, setFavoriteConseils] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'diabete' | 'hypertension' | 'vih' | 'general'>('all');
+  const [selectedFilter, setSelectedFilter] = useState<Disease | 'all'>('all');
   const [fadeAnim] = useState(new Animated.Value(1));
   const [tabAnim] = useState(new Animated.Value(0));
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -98,6 +135,9 @@ export default function ConseilsSante() {
   const [loading, setLoading] = useState(false);
   const [pageConseils, setPageConseils] = useState(1);
   const [pageQuizzes, setPageQuizzes] = useState(1);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recognizedText, setRecognizedText] = useState('');
+  const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
   const itemsPerPage = 10;
 
   const [userProgress, setUserProgress] = useState<UserProgress>({
@@ -227,15 +267,13 @@ export default function ConseilsSante() {
     },
   ]);
 
-  // Simuler la récupération de données depuis Internet
   const fetchConseils = async (page: number): Promise<Conseil[]> => {
     setLoading(true);
     try {
-      // Simulation d'une requête API
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Liste de conseils variés
       const conseilPool: Conseil[] = [
+        // Diabète
         {
           id: `conseil-${Date.now()}-${page}-1`,
           category: 'nutrition',
@@ -250,6 +288,18 @@ export default function ConseilsSante() {
         {
           id: `conseil-${Date.now()}-${page}-2`,
           category: 'activite',
+          disease: 'diabete',
+          title: '🚶 Marche régulière pour le diabète',
+          description: 'La marche aide à améliorer la sensibilité à l’insuline et à contrôler la glycémie.',
+          points: 10,
+          tips: ['Marchez 30 minutes par jour', 'Portez des chaussures confortables', 'Surveillez votre glycémie après l’effort'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr'],
+        },
+        // Hypertension
+        {
+          id: `conseil-${Date.now()}-${page}-3`,
+          category: 'activite',
           disease: 'hypertension',
           title: '🚴‍♀️ Vélo pour la tension',
           description: 'Le vélo régulier réduit la pression artérielle et améliore la santé cardiaque.',
@@ -259,7 +309,778 @@ export default function ConseilsSante() {
           relatedLinks: ['https://www.who.int/fr'],
         },
         {
-          id: `conseil-${Date.now()}-${page}-3`,
+          id: `conseil-${Date.now()}-${page}-4`,
+          category: 'nutrition',
+          disease: 'hypertension',
+          title: '🥗 Réduire le sel pour la tension',
+          description: 'Une faible consommation de sel aide à maintenir une pression artérielle saine.',
+          points: 10,
+          tips: ['Évitez les aliments transformés', 'Utilisez des herbes pour assaisonner', 'Lisez les étiquettes alimentaires'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.santepubliquefrance.fr'],
+        },
+        // Insuffisance cardiaque
+        {
+          id: `conseil-${Date.now()}-${page}-5`,
+          category: 'prevention',
+          disease: 'insuffisance-cardiaque',
+          title: '🩺 Suivi médical régulier',
+          description: 'Un suivi régulier avec un cardiologue aide à gérer l’insuffisance cardiaque.',
+          points: 10,
+          tips: ['Prenez vos médicaments comme prescrit', 'Surveillez votre poids quotidiennement', 'Signalez tout symptôme nouveau'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-6`,
+          category: 'nutrition',
+          disease: 'insuffisance-cardiaque',
+          title: '🍎 Alimentation pauvre en sodium',
+          description: 'Réduire le sodium aide à éviter la rétention d’eau dans l’insuffisance cardiaque.',
+          points: 10,
+          tips: ['Préférez les aliments frais', 'Évitez les conserves', 'Consultez un diététicien'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr/nutrition'],
+        },
+        // Athérosclérose
+        {
+          id: `conseil-${Date.now()}-${page}-7`,
+          category: 'nutrition',
+          disease: 'atherosclerose',
+          title: '🥜 Consommer des graisses saines',
+          description: 'Les graisses insaturées, comme celles des noix, réduisent le risque d’athérosclérose.',
+          points: 10,
+          tips: ['Consommez des noix non salées', 'Ajoutez de l’huile d’olive à vos plats', 'Limitez les graisses saturées'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.santepubliquefrance.fr'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-8`,
+          category: 'activite',
+          disease: 'atherosclerose',
+          title: '🏃‍♂️ Exercice aérobique modéré',
+          description: 'L’exercice aérobique améliore la circulation et réduit l’accumulation de plaque.',
+          points: 15,
+          tips: ['Marchez ou nagez 30 minutes par jour', 'Évitez les efforts intenses', 'Consultez votre médecin avant de commencer'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr'],
+        },
+        // Maladie coronarienne
+        {
+          id: `conseil-${Date.now()}-${page}-9`,
+          category: 'prevention',
+          disease: 'maladie-coronarienne',
+          title: '🚭 Arrêter de fumer',
+          description: 'Cesser de fumer réduit le risque de complications coronariennes.',
+          points: 15,
+          tips: ['Consultez un spécialiste pour arrêter', 'Utilisez des substituts nicotiniques', 'Rejoignez un groupe de soutien'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-10`,
+          category: 'nutrition',
+          disease: 'maladie-coronarienne',
+          title: '🐟 Poissons riches en oméga-3',
+          description: 'Les oméga-3 protègent le cœur et réduisent l’inflammation.',
+          points: 10,
+          tips: ['Mangez du saumon ou du maquereau 2 fois par semaine', 'Évitez les fritures', 'Préférez la cuisson au four'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr/nutrition'],
+        },
+        // Asthme
+        {
+          id: `conseil-${Date.now()}-${page}-11`,
+          category: 'prevention',
+          disease: 'asthme',
+          title: '🌬️ Éviter les déclencheurs de l’asthme',
+          description: 'Réduisez l’exposition aux allergènes comme la poussière et le pollen pour mieux gérer l’asthme.',
+          points: 10,
+          tips: ['Utilisez des filtres à air', 'Évitez de fumer', 'Portez un masque en extérieur'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.santepubliquefrance.fr'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-12`,
+          category: 'activite',
+          disease: 'asthme',
+          title: '🏊 Natation pour l’asthme',
+          description: 'La natation dans un environnement humide aide à renforcer les poumons sans déclencher de crises.',
+          points: 10,
+          tips: ['Nagez dans une piscine chauffée', 'Évitez les efforts intenses', 'Utilisez votre inhalateur avant l’exercice'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr'],
+        },
+        // BPCO
+        {
+          id: `conseil-${Date.now()}-${page}-13`,
+          category: 'prevention',
+          disease: 'bpco',
+          title: '🚭 Cesser le tabagisme pour la BPCO',
+          description: 'Arrêter de fumer ralentit la progression de la BPCO.',
+          points: 15,
+          tips: ['Consultez un pneumologue', 'Utilisez des patchs nicotiniques', 'Évitez les environnements enfumés'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.santepubliquefrance.fr'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-14`,
+          category: 'activite',
+          disease: 'bpco',
+          title: '🧘 Exercices de respiration',
+          description: 'Les exercices de respiration améliorent la capacité pulmonaire dans la BPCO.',
+          points: 10,
+          tips: ['Pratiquez la respiration diaphragmatique', 'Consultez un kinésithérapeute', 'Faites des exercices doux quotidiens'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr'],
+        },
+        // Fibrose pulmonaire
+        {
+          id: `conseil-${Date.now()}-${page}-15`,
+          category: 'prevention',
+          disease: 'fibrose-pulmonaire',
+          title: '🩺 Suivi pulmonaire régulier',
+          description: 'Un suivi médical régulier aide à surveiller la progression de la fibrose pulmonaire.',
+          points: 10,
+          tips: ['Planifiez des consultations trimestrielles', 'Surveillez les symptômes respiratoires', 'Évitez les infections pulmonaires'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-16`,
+          category: 'activite',
+          disease: 'fibrose-pulmonaire',
+          title: '🚶 Marche douce pour la fibrose',
+          description: 'Une marche légère améliore l’endurance sans surcharger les poumons.',
+          points: 10,
+          tips: ['Marchez à votre rythme', 'Utilisez un oxymètre de pouls', 'Reposez-vous si essoufflé'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr'],
+        },
+        // Hypothyroïdie
+        {
+          id: `conseil-${Date.now()}-${page}-17`,
+          category: 'nutrition',
+          disease: 'hypothyroidie',
+          title: '🥗 Aliments riches en iode',
+          description: 'L’iode soutient la fonction thyroïdienne dans l’hypothyroïdie.',
+          points: 10,
+          tips: ['Consommez des fruits de mer', 'Utilisez du sel iodé', 'Consultez un endocrinologue'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-18`,
+          category: 'prevention',
+          disease: 'hypothyroidie',
+          title: '🩺 Suivi des niveaux hormonaux',
+          description: 'Un suivi régulier des hormones thyroïdiennes optimise le traitement.',
+          points: 10,
+          tips: ['Faites des analyses sanguines régulières', 'Prenez vos médicaments à jeun', 'Signalez les symptômes à votre médecin'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr'],
+        },
+        // Hyperthyroïdie
+        {
+          id: `conseil-${Date.now()}-${page}-19`,
+          category: 'nutrition',
+          disease: 'hyperthyroidie',
+          title: '🥦 Aliments anti-inflammatoires',
+          description: 'Les légumes crucifères aident à réguler l’hyperthyroïdie.',
+          points: 10,
+          tips: ['Mangez du chou ou du brocoli', 'Évitez les aliments riches en iode', 'Consultez un diététicien'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr/nutrition'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-20`,
+          category: 'prevention',
+          disease: 'hyperthyroidie',
+          title: '🧘 Gestion du stress',
+          description: 'Le stress peut aggraver l’hyperthyroïdie; la relaxation aide à le contrôler.',
+          points: 10,
+          tips: ['Pratiquez la méditation', 'Faites des exercices de respiration', 'Évitez les stimulants comme la caféine'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr'],
+        },
+        // Obésité
+        {
+          id: `conseil-${Date.now()}-${page}-21`,
+          category: 'nutrition',
+          disease: 'obesite',
+          title: '🍎 Repas équilibrés pour l’obésité',
+          description: 'Une alimentation équilibrée aide à gérer le poids corporel.',
+          points: 10,
+          tips: ['Mangez des repas riches en légumes', 'Limitez les sucres rapides', 'Consultez un nutritionniste'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr/nutrition'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-22`,
+          category: 'activite',
+          disease: 'obesite',
+          title: '🚴 Activité physique régulière',
+          description: 'L’exercice régulier aide à brûler des calories et à améliorer la santé.',
+          points: 15,
+          tips: ['Faites 150 minutes d’exercice par semaine', 'Commencez par des activités douces', 'Trouvez un partenaire d’entraînement'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr'],
+        },
+        // Insuffisance rénale
+        {
+          id: `conseil-${Date.now()}-${page}-23`,
+          category: 'nutrition',
+          disease: 'insuffisance-renale',
+          title: '🥗 Régime pauvre en sel',
+          description: 'Un régime pauvre en sel aide à réduire la charge sur les reins.',
+          points: 10,
+          tips: ['Évitez les aliments transformés', 'Utilisez des herbes pour assaisonner', 'Consultez un diététicien'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr/renal'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-24`,
+          category: 'prevention',
+          disease: 'insuffisance-renale',
+          title: '💧 Hydratation contrôlée',
+          description: 'Une hydratation adaptée aide à soutenir la fonction rénale.',
+          points: 10,
+          tips: ['Suivez les recommandations de votre médecin', 'Évitez les boissons sucrées', 'Surveillez votre apport en liquide'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr'],
+        },
+        // Néphropathie diabétique
+        {
+          id: `conseil-${Date.now()}-${page}-25`,
+          category: 'prevention',
+          disease: 'nephropathie-diabetique',
+          title: '🩺 Contrôle de la glycémie',
+          description: 'Un bon contrôle de la glycémie protège les reins dans la néphropathie diabétique.',
+          points: 10,
+          tips: ['Surveillez votre glycémie quotidiennement', 'Suivez votre traitement', 'Consultez un endocrinologue'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-26`,
+          category: 'nutrition',
+          disease: 'nephropathie-diabetique',
+          title: '🥕 Aliments à faible indice glycémique',
+          description: 'Les aliments à faible indice glycémique aident à protéger les reins.',
+          points: 10,
+          tips: ['Privilégiez les légumes verts', 'Évitez les sucres rapides', 'Planifiez vos repas'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr/nutrition'],
+        },
+        // Parkinson
+        {
+          id: `conseil-${Date.now()}-${page}-27`,
+          category: 'activite',
+          disease: 'parkinson',
+          title: '🚶‍♂️ Exercices pour Parkinson',
+          description: 'Les exercices physiques comme la marche aident à améliorer la mobilité et l’équilibre.',
+          points: 15,
+          tips: ['Marchez 20 minutes par jour', 'Pratiquez le tai-chi', 'Consultez un kinésithérapeute'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.parkinson.org'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-28`,
+          category: 'education',
+          disease: 'parkinson',
+          title: '🧠 Thérapie occupationnelle',
+          description: 'La thérapie occupationnelle aide à maintenir l’autonomie dans la maladie de Parkinson.',
+          points: 10,
+          tips: ['Travaillez avec un ergothérapeute', 'Pratiquez des activités manuelles', 'Adaptez votre environnement'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.parkinson.org'],
+        },
+        // Sclérose en plaques
+        {
+          id: `conseil-${Date.now()}-${page}-29`,
+          category: 'activite',
+          disease: 'sclerose-en-plaques',
+          title: '🏊 Exercices à faible impact',
+          description: 'Les exercices à faible impact aident à maintenir la mobilité dans la sclérose en plaques.',
+          points: 10,
+          tips: ['Essayez le yoga ou la natation', 'Évitez la surchauffe', 'Reposez-vous après l’effort'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-30`,
+          category: 'prevention',
+          disease: 'sclerose-en-plaques',
+          title: '🩺 Gestion des symptômes',
+          description: 'Un suivi régulier aide à gérer les poussées de sclérose en plaques.',
+          points: 10,
+          tips: ['Consultez un neurologue régulièrement', 'Notez vos symptômes', 'Évitez le stress'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.mssociety.org.uk'],
+        },
+        // Épilepsie
+        {
+          id: `conseil-${Date.now()}-${page}-31`,
+          category: 'prevention',
+          disease: 'epilepsie',
+          title: '💤 Sommeil régulier',
+          description: 'Un sommeil suffisant réduit le risque de crises d’épilepsie.',
+          points: 10,
+          tips: ['Maintenez un horaire de sommeil régulier', 'Évitez les stimulants avant le coucher', 'Consultez un neurologue'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.epilepsy.com'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-32`,
+          category: 'education',
+          disease: 'epilepsie',
+          title: '🩺 Respect des traitements',
+          description: 'Prendre ses médicaments régulièrement réduit les crises.',
+          points: 10,
+          tips: ['Utilisez un pilulier', 'Notez les effets secondaires', 'Consultez si des ajustements sont nécessaires'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr'],
+        },
+        // Migraine chronique
+        {
+          id: `conseil-${Date.now()}-${page}-33`,
+          category: 'prevention',
+          disease: 'migraine-chronique',
+          title: '🧘 Éviter les déclencheurs de migraine',
+          description: 'Identifier et éviter les déclencheurs réduit la fréquence des migraines.',
+          points: 10,
+          tips: ['Tenez un journal des migraines', 'Évitez les aliments riches en caféine', 'Maintenez un horaire régulier'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.migraine.com'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-34`,
+          category: 'activite',
+          disease: 'migraine-chronique',
+          title: '🧘 Yoga pour les migraines',
+          description: 'Le yoga aide à réduire le stress et les migraines chroniques.',
+          points: 10,
+          tips: ['Pratiquez des postures douces', 'Évitez les positions inversées', 'Consultez un instructeur spécialisé'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr'],
+        },
+        // Lupus
+        {
+          id: `conseil-${Date.now()}-${page}-35`,
+          category: 'education',
+          disease: 'lupus',
+          title: '🩺 Gestion du lupus',
+          description: 'Une gestion régulière avec un rhumatologue aide à contrôler les symptômes du lupus.',
+          points: 10,
+          tips: ['Évitez l’exposition prolongée au soleil', 'Suivez votre traitement', 'Reposez-vous suffisamment'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.lupus.org'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-36`,
+          category: 'nutrition',
+          disease: 'lupus',
+          title: '🥗 Alimentation anti-inflammatoire',
+          description: 'Une alimentation riche en antioxydants réduit l’inflammation liée au lupus.',
+          points: 10,
+          tips: ['Consommez des fruits rouges', 'Ajoutez du curcuma à vos plats', 'Évitez les aliments transformés'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr/nutrition'],
+        },
+        // Polyarthrite rhumatoïde
+        {
+          id: `conseil-${Date.now()}-${page}-37`,
+          category: 'activite',
+          disease: 'polyarthrite-rhumatoide',
+          title: '🏊 Exercices doux pour les articulations',
+          description: 'Les exercices doux préservent la mobilité dans la polyarthrite rhumatoïde.',
+          points: 10,
+          tips: ['Essayez la natation', 'Évitez les mouvements brusques', 'Consultez un physiothérapeute'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-38`,
+          category: 'prevention',
+          disease: 'polyarthrite-rhumatoide',
+          title: '🩺 Suivi rhumatologique',
+          description: 'Un suivi régulier aide à gérer les poussées de polyarthrite rhumatoïde.',
+          points: 10,
+          tips: ['Prenez vos médicaments comme prescrit', 'Signalez tout symptôme nouveau', 'Reposez-vous pendant les poussées'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.arthritis.org'],
+        },
+        // Maladie de Crohn
+        {
+          id: `conseil-${Date.now()}-${page}-39`,
+          category: 'nutrition',
+          disease: 'crohn',
+          title: '🥗 Régime adapté pour Crohn',
+          description: 'Un régime adapté réduit les symptômes de la maladie de Crohn.',
+          points: 10,
+          tips: ['Évitez les aliments riches en fibres pendant les poussées', 'Consommez des repas fractionnés', 'Consultez un diététicien'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.crohnscolitisfoundation.org'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-40`,
+          category: 'prevention',
+          disease: 'crohn',
+          title: '🧘 Gestion du stress pour Crohn',
+          description: 'Le stress peut aggraver les symptômes de Crohn; la relaxation aide.',
+          points: 10,
+          tips: ['Pratiquez la méditation', 'Faites des exercices de respiration', 'Consultez un psychologue si nécessaire'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr'],
+        },
+        // Colite ulcéreuse
+        {
+          id: `conseil-${Date.now()}-${page}-41`,
+          category: 'nutrition',
+          disease: 'colite-ulcereuse',
+          title: '🍎 Alimentation douce pour la colite',
+          description: 'Une alimentation douce réduit l’irritation dans la colite ulcéreuse.',
+          points: 10,
+          tips: ['Évitez les aliments épicés', 'Consommez des aliments cuits', 'Tenez un journal alimentaire'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.crohnscolitisfoundation.org'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-42`,
+          category: 'prevention',
+          disease: 'colite-ulcereuse',
+          title: '🩺 Suivi gastro-entérologique',
+          description: 'Un suivi régulier aide à gérer la colite ulcéreuse.',
+          points: 10,
+          tips: ['Planifiez des coloscopies régulières', 'Signalez les symptômes nouveaux', 'Suivez votre traitement'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr'],
+        },
+        // Cancer du sein
+        {
+          id: `conseil-${Date.now()}-${page}-43`,
+          category: 'education',
+          disease: 'cancer-sein',
+          title: '🩺 Dépistage précoce du cancer du sein',
+          description: 'Un dépistage régulier peut détecter le cancer à un stade précoce pour un meilleur traitement.',
+          points: 10,
+          tips: ['Planifiez des mammographies régulières', 'Consultez pour tout symptôme inhabituel', 'Informez-vous sur les facteurs de risque'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.cancer.org'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-44`,
+          category: 'activite',
+          disease: 'cancer-sein',
+          title: '🚶 Activité physique pour la prévention',
+          description: 'L’exercice réduit le risque de récidive du cancer du sein.',
+          points: 10,
+          tips: ['Marchez 30 minutes par jour', 'Essayez le yoga', 'Consultez votre médecin avant de commencer'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.cancer.org'],
+        },
+        // Cancer de la prostate
+        {
+          id: `conseil-${Date.now()}-${page}-45`,
+          category: 'education',
+          disease: 'cancer-prostate',
+          title: '🩺 Dépistage du cancer de la prostate',
+          description: 'Un dépistage régulier aide à détecter le cancer de la prostate tôt.',
+          points: 10,
+          tips: ['Faites un test PSA annuel', 'Consultez un urologue', 'Discutez des antécédents familiaux'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.cancer.org'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-46`,
+          category: 'nutrition',
+          disease: 'cancer-prostate',
+          title: '🍅 Aliments riches en lycopène',
+          description: 'Le lycopène, présent dans les tomates, peut réduire le risque de cancer de la prostate.',
+          points: 10,
+          tips: ['Mangez des tomates cuites', 'Ajoutez des légumes rouges', 'Évitez les graisses saturées'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr/nutrition'],
+        },
+        // Cancer du poumon
+        {
+          id: `conseil-${Date.now()}-${page}-47`,
+          category: 'prevention',
+          disease: 'cancer-poumon',
+          title: '🚭 Arrêter de fumer',
+          description: 'Cesser de fumer est crucial pour réduire le risque de cancer du poumon.',
+          points: 15,
+          tips: ['Consultez un spécialiste', 'Utilisez des substituts nicotiniques', 'Rejoignez un groupe de soutien'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.cancer.org'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-48`,
+          category: 'education',
+          disease: 'cancer-poumon',
+          title: '🩺 Dépistage précoce',
+          description: 'Un dépistage par scanner peut détecter le cancer du poumon à un stade précoce.',
+          points: 10,
+          tips: ['Consultez un pneumologue', 'Discutez des antécédents de tabagisme', 'Planifiez un dépistage si à risque'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.cancer.org'],
+        },
+        // Leucémie
+        {
+          id: `conseil-${Date.now()}-${page}-49`,
+          category: 'prevention',
+          disease: 'leucemie',
+          title: '🩺 Suivi hématologique',
+          description: 'Un suivi régulier aide à surveiller les marqueurs de la leucémie.',
+          points: 10,
+          tips: ['Faites des analyses sanguines régulières', 'Signalez tout symptôme', 'Consultez un hématologue'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.cancer.org'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-50`,
+          category: 'nutrition',
+          disease: 'leucemie',
+          title: '🥗 Alimentation pour l’immunité',
+          description: 'Une alimentation riche en nutriments soutient le système immunitaire.',
+          points: 10,
+          tips: ['Consommez des fruits et légumes', 'Évitez les aliments crus', 'Consultez un diététicien'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr/nutrition'],
+        },
+        // Arthrose
+        {
+          id: `conseil-${Date.now()}-${page}-51`,
+          category: 'activite',
+          disease: 'arthrose',
+          title: '🏊 Natation pour l’arthrose',
+          description: 'La natation soulage les douleurs articulaires en réduisant la pression sur les articulations.',
+          points: 15,
+          tips: ['Nagez 2 fois par semaine', 'Privilégiez les piscines chauffées', 'Consultez un physiothérapeute'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.santepubliquefrance.fr'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-52`,
+          category: 'nutrition',
+          disease: 'arthrose',
+          title: '🥗 Aliments anti-inflammatoires',
+          description: 'Les aliments riches en oméga-3 réduisent l’inflammation articulaire.',
+          points: 10,
+          tips: ['Mangez du poisson gras', 'Ajoutez des noix à votre alimentation', 'Évitez les aliments transformés'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr/nutrition'],
+        },
+        // Ostéoporose
+        {
+          id: `conseil-${Date.now()}-${page}-53`,
+          category: 'nutrition',
+          disease: 'osteoporose',
+          title: '🥛 Calcium pour les os',
+          description: 'Le calcium renforce les os et prévient l’ostéoporose.',
+          points: 10,
+          tips: ['Consommez des produits laitiers', 'Ajoutez des légumes verts', 'Consultez pour un supplément si nécessaire'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr/nutrition'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-54`,
+          category: 'activite',
+          disease: 'osteoporose',
+          title: '🏋️ Exercices de renforcement',
+          description: 'Les exercices de renforcement musculaire améliorent la densité osseuse.',
+          points: 10,
+          tips: ['Faites des exercices avec poids légers', 'Marchez régulièrement', 'Consultez un physiothérapeute'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr'],
+        },
+        // Fibromyalgie
+        {
+          id: `conseil-${Date.now()}-${page}-55`,
+          category: 'activite',
+          disease: 'fibromyalgie',
+          title: '🧘 Yoga pour la fibromyalgie',
+          description: 'Le yoga aide à réduire la douleur et à améliorer la flexibilité.',
+          points: 10,
+          tips: ['Pratiquez des postures douces', 'Évitez la surchauffe', 'Consultez un instructeur spécialisé'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-56`,
+          category: 'prevention',
+          disease: 'fibromyalgie',
+          title: '💤 Gestion du sommeil',
+          description: 'Un sommeil de qualité réduit les symptômes de la fibromyalgie.',
+          points: 10,
+          tips: ['Maintenez un horaire régulier', 'Évitez les écrans avant le coucher', 'Créez un environnement calme'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr'],
+        },
+        // Dépression
+        {
+          id: `conseil-${Date.now()}-${page}-57`,
+          category: 'prevention',
+          disease: 'depression',
+          title: '🧘‍♀️ Méditation pour la santé mentale',
+          description: 'La méditation peut aider à réduire les symptômes de la dépression.',
+          points: 10,
+          tips: ['Pratiquez 10 minutes par jour', 'Trouvez un endroit calme', 'Utilisez des applications de méditation guidée'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr/mental-health'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-58`,
+          category: 'activite',
+          disease: 'depression',
+          title: '🚶 Marche pour la dépression',
+          description: 'La marche régulière améliore l’humeur et réduit les symptômes dépressifs.',
+          points: 10,
+          tips: ['Marchez 20 minutes par jour', 'Privilégiez la nature', 'Marchez avec un ami'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr'],
+        },
+        // Troubles anxieux
+        {
+          id: `conseil-${Date.now()}-${page}-59`,
+          category: 'prevention',
+          disease: 'troubles-anxieux',
+          title: '🧘 Techniques de relaxation',
+          description: 'Les techniques de relaxation réduisent l’anxiété généralisée.',
+          points: 10,
+          tips: ['Pratiquez la respiration profonde', 'Essayez la méditation guidée', 'Consultez un thérapeute'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr/mental-health'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-60`,
+          category: 'activite',
+          disease: 'troubles-anxieux',
+          title: '🏃 Activité physique pour l’anxiété',
+          description: 'L’exercice physique aide à réduire les symptômes d’anxiété.',
+          points: 10,
+          tips: ['Faites 30 minutes d’exercice modéré', 'Essayez le jogging', 'Évitez les stimulants comme la caféine'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr'],
+        },
+        // Schizophrénie
+        {
+          id: `conseil-${Date.now()}-${page}-61`,
+          category: 'education',
+          disease: 'schizophrenie',
+          title: '🩺 Suivi psychiatrique',
+          description: 'Un suivi régulier avec un psychiatre aide à gérer la schizophrénie.',
+          points: 10,
+          tips: ['Prenez vos médicaments comme prescrit', 'Notez les effets secondaires', 'Consultez régulièrement'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-62`,
+          category: 'prevention',
+          disease: 'schizophrenie',
+          title: '🧘 Gestion du stress',
+          description: 'Réduire le stress aide à minimiser les symptômes de la schizophrénie.',
+          points: 10,
+          tips: ['Pratiquez la relaxation', 'Évitez les situations stressantes', 'Rejoignez un groupe de soutien'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr/mental-health'],
+        },
+        // Trouble bipolaire
+        {
+          id: `conseil-${Date.now()}-${page}-63`,
+          category: 'prevention',
+          disease: 'trouble-bipolaire',
+          title: '💤 Routine de sommeil',
+          description: 'Une routine de sommeil stable aide à gérer le trouble bipolaire.',
+          points: 10,
+          tips: ['Maintenez des horaires réguliers', 'Évitez les stimulants avant le coucher', 'Consultez un psychiatre'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-64`,
+          category: 'education',
+          disease: 'trouble-bipolaire',
+          title: '🩺 Suivi des humeurs',
+          description: 'Tenir un journal des humeurs aide à identifier les déclencheurs.',
+          points: 10,
+          tips: ['Notez vos émotions quotidiennes', 'Partagez avec votre thérapeute', 'Utilisez une application dédiée'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr/mental-health'],
+        },
+        // Cirrhose
+        {
+          id: `conseil-${Date.now()}-${page}-65`,
+          category: 'nutrition',
+          disease: 'cirrhose',
+          title: '🍏 Alimentation saine pour le foie',
+          description: 'Une alimentation équilibrée protège le foie et ralentit la progression de la cirrhose.',
+          points: 10,
+          tips: ['Évitez l’alcool', 'Consommez des légumes verts', 'Limitez les graisses saturées'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-66`,
+          category: 'prevention',
+          disease: 'cirrhose',
+          title: '🩺 Vaccination hépatique',
+          description: 'Les vaccins contre l’hépatite protègent le foie dans la cirrhose.',
+          points: 10,
+          tips: ['Vérifiez votre statut vaccinal', 'Consultez un hépatologue', 'Évitez les infections'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr'],
+        },
+        // Psoriasis
+        {
+          id: `conseil-${Date.now()}-${page}-67`,
+          category: 'prevention',
+          disease: 'psoriasis',
+          title: '🧴 Hydratation de la peau',
+          description: 'Une peau bien hydratée réduit les symptômes du psoriasis.',
+          points: 10,
+          tips: ['Utilisez des crèmes émollientes', 'Évitez les douches chaudes', 'Consultez un dermatologue'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.psoriasis.org'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-68`,
+          category: 'nutrition',
+          disease: 'psoriasis',
+          title: '🥗 Alimentation anti-inflammatoire',
+          description: 'Une alimentation riche en antioxydants réduit l’inflammation du psoriasis.',
+          points: 10,
+          tips: ['Consommez des poissons gras', 'Ajoutez des fruits rouges', 'Évitez les aliments transformés'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr/nutrition'],
+        },
+        // Endométriose
+        {
+          id: `conseil-${Date.now()}-${page}-69`,
+          category: 'prevention',
+          disease: 'endometriose',
+          title: '🩺 Suivi gynécologique',
+          description: 'Un suivi régulier aide à gérer les symptômes de l’endométriose.',
+          points: 10,
+          tips: ['Consultez un gynécologue régulièrement', 'Notez vos douleurs', 'Discutez des options de traitement'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr'],
+        },
+        {
+          id: `conseil-${Date.now()}-${page}-70`,
+          category: 'nutrition',
+          disease: 'endometriose',
+          title: '🥗 Régime anti-inflammatoire',
+          description: 'Une alimentation anti-inflammatoire peut réduire les douleurs de l’endométriose.',
+          points: 10,
+          tips: ['Consommez des légumes verts', 'Évitez les aliments transformés', 'Ajoutez des oméga-3'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr/nutrition'],
+        },
+        // VIH
+        {
+          id: `conseil-${Date.now()}-${page}-71`,
           category: 'education',
           disease: 'vih',
           title: '📚 Sensibilisation au VIH',
@@ -270,7 +1091,19 @@ export default function ConseilsSante() {
           relatedLinks: ['https://www.unaids.org/fr'],
         },
         {
-          id: `conseil-${Date.now()}-${page}-4`,
+          id: `conseil-${Date.now()}-${page}-72`,
+          category: 'prevention',
+          disease: 'vih',
+          title: '🩺 Adhérence au traitement',
+          description: 'Prendre son traitement antirétroviral régulièrement maintient une charge virale indétectable.',
+          points: 10,
+          tips: ['Utilisez un pilulier', 'Planifiez vos prises', 'Consultez un infectiologue'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.sante.fr'],
+        },
+        // Général
+        {
+          id: `conseil-${Date.now()}-${page}-73`,
           category: 'prevention',
           disease: 'general',
           title: '🧴 Protection solaire',
@@ -280,21 +1113,26 @@ export default function ConseilsSante() {
           dateAdded: new Date().toISOString().split('T')[0],
           relatedLinks: ['https://www.santepubliquefrance.fr'],
         },
+        {
+          id: `conseil-${Date.now()}-${page}-74`,
+          category: 'activite',
+          disease: 'general',
+          title: '🚶 Activité physique quotidienne',
+          description: 'Une activité physique régulière améliore la santé globale.',
+          points: 10,
+          tips: ['Marchez 30 minutes par jour', 'Essayez des activités variées', 'Fixez des objectifs réalistes'],
+          dateAdded: new Date().toISOString().split('T')[0],
+          relatedLinks: ['https://www.who.int/fr'],
+        },
       ];
 
-      // Filtrer les conseils déjà présents pour éviter les doublons
       const existingIds = conseils.map(c => c.id);
       const newConseils = conseilPool.filter(c => !existingIds.includes(c.id));
-
-      // Si c'est la première page, réinitialiser les conseils, sinon ajouter
       const updatedConseils = page === 1 ? newConseils : [...conseils, ...newConseils];
-
-      // Stocker en local pour mode hors-ligne
       await AsyncStorage.setItem('cachedConseils', JSON.stringify(updatedConseils));
       return updatedConseils;
     } catch (error) {
       console.error('Erreur récupération conseils:', error);
-      // Charger les données locales en cas d'erreur
       const cached = await AsyncStorage.getItem('cachedConseils');
       return cached ? JSON.parse(cached) : [];
     } finally {
@@ -305,10 +1143,8 @@ export default function ConseilsSante() {
   const fetchQuizzes = async (page: number): Promise<Quiz[]> => {
     setLoading(true);
     try {
-      // Simulation d'une requête API
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Liste de quiz variés
       const quizPool: Quiz[] = [
         {
           id: `quiz-${Date.now()}-${page}-1`,
@@ -350,21 +1186,75 @@ export default function ConseilsSante() {
           points: 15,
           timeLimit: 35,
         },
+        {
+          id: `quiz-${Date.now()}-${page}-5`,
+          question: '🌬️ Quel est un déclencheur courant de l’asthme ?',
+          options: ['Sucre', 'Poussière', 'Eau', 'Légumes'],
+          correctAnswer: 'Poussière',
+          disease: 'asthme',
+          explanation: 'La poussière peut déclencher des crises d’asthme en irritant les voies respiratoires.',
+          points: 15,
+          timeLimit: 30,
+        },
+        {
+          id: `quiz-${Date.now()}-${page}-6`,
+          question: '🧠 Quel symptôme est courant dans la maladie de Parkinson ?',
+          options: ['Tremblements', 'Perte de cheveux', 'Fièvre', 'Toux'],
+          correctAnswer: 'Tremblements',
+          disease: 'parkinson',
+          explanation: 'Les tremblements sont un symptôme caractéristique de la maladie de Parkinson.',
+          points: 20,
+          timeLimit: 40,
+        },
+        {
+          id: `quiz-${Date.now()}-${page}-7`,
+          question: '🩺 Quel est un facteur de risque du cancer du sein ?',
+          options: ['Boire de l’eau', 'Tabagisme', 'Exercice physique', 'Antécédents familiaux'],
+          correctAnswer: 'Antécédents familiaux',
+          disease: 'cancer-sein',
+          explanation: 'Les antécédents familiaux augmentent le risque de cancer du sein.',
+          points: 15,
+          timeLimit: 35,
+        },
+        {
+          id: `quiz-${Date.now()}-${page}-8`,
+          question: '🥗 Quel nutriment limiter pour l’insuffisance rénale ?',
+          options: ['Sucre', 'Sel', 'Vitamine C', 'Fibres'],
+          correctAnswer: 'Sel',
+          disease: 'insuffisance-renale',
+          explanation: 'Réduire le sel aide à gérer la pression sur les reins.',
+          points: 15,
+          timeLimit: 30,
+        },
+        {
+          id: `quiz-${Date.now()}-${page}-9`,
+          question: '🧘‍♀️ Quelle activité aide à gérer la dépression ?',
+          options: ['Méditation', 'Jeux vidéo', 'Consommation d’alcool', 'Fumer'],
+          correctAnswer: 'Méditation',
+          disease: 'depression',
+          explanation: 'La méditation réduit les symptômes de la dépression en favorisant la relaxation.',
+          points: 10,
+          timeLimit: 30,
+        },
+        {
+          id: `quiz-${Date.now()}-${page}-10`,
+          question: '🏊 Quelle activité est bénéfique pour l’arthrose ?',
+          options: ['Course à pied', 'Natation', 'Haltérophilie', 'Escalade'],
+          correctAnswer: 'Natation',
+          disease: 'arthrose',
+          explanation: 'La natation réduit la pression sur les articulations tout en améliorant la mobilité.',
+          points: 15,
+          timeLimit: 35,
+        },
       ];
 
-      // Filtrer les quiz déjà présents pour éviter les doublons
       const existingIds = quizzes.map(q => q.id);
       const newQuizzes = quizPool.filter(q => !existingIds.includes(q.id));
-
-      // Si c'est la première page, réinitialiser les quiz, sinon ajouter
       const updatedQuizzes = page === 1 ? newQuizzes : [...quizzes, ...newQuizzes];
-
-      // Stocker en local pour mode hors-ligne
       await AsyncStorage.setItem('cachedQuizzes', JSON.stringify(updatedQuizzes));
       return updatedQuizzes;
     } catch (error) {
       console.error('Erreur récupération quiz:', error);
-      // Charger les données locales en cas d'erreur
       const cached = await AsyncStorage.getItem('cachedQuizzes');
       return cached ? JSON.parse(cached) : [];
     } finally {
@@ -386,11 +1276,116 @@ export default function ConseilsSante() {
     return monthEnd.toDateString();
   }
 
-  useEffect(() => {
-    loadProgress();
-    updateStreak();
-    fetchInitialData();
-  }, []);
+
+
+
+const requestMicrophonePermission = async () => {
+  if (Platform.OS === 'android') {
+    try {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+        {
+          title: 'Microphone Permission',
+          message: 'This app needs access to your microphone to enable voice recognition.',
+          buttonNeutral: 'Ask Me Later',
+          buttonNegative: 'Cancel',
+          buttonPositive: 'OK',
+        }
+      );
+      return granted === PermissionsAndroid.RESULTS.GRANTED;
+    } catch (err) {
+      console.warn('Permission error:', err);
+      return false;
+    }
+  }
+  return true;
+};
+
+const startRecording = async () => {
+  if (!Voice || !Voice._loaded) {
+    console.error('Voice module is not loaded');
+    Alert.alert('Erreur', 'Module de reconnaissance vocale non chargé.');
+    speak('Module de reconnaissance vocale non chargé.', 'fr-FR');
+    return;
+  }
+  const hasPermission = await requestMicrophonePermission();
+  if (!hasPermission) {
+    Alert.alert('Permission refusée', 'Veuillez autoriser l’accès au microphone.');
+    speak('Veuillez autoriser l’accès au microphone.', 'fr-FR');
+    return;
+  }
+  try {
+    await Voice.start('fr-FR');
+    setIsRecording(true);
+  } catch (error) {
+    console.error('Erreur démarrage reconnaissance vocale:', error);
+    Alert.alert('Erreur', 'Impossible de démarrer la reconnaissance vocale.');
+    speak('Erreur lors du démarrage de la reconnaissance vocale.', 'fr-FR');
+  }
+};
+
+useEffect(() => {
+  console.log('Voice module:', Voice);
+  loadProgress();
+  updateStreak();
+  fetchInitialData();
+
+  const initializeVoice = async () => {
+    if (!Voice) {
+      console.error('Voice module is undefined');
+      Alert.alert('Erreur', 'Module de reconnaissance vocale non disponible.');
+      speak('Module de reconnaissance vocale non disponible.', 'fr-FR');
+      return;
+    }
+
+    // Wait for the module to load
+    let attempts = 0;
+    while (!Voice._loaded && attempts < 5) {
+      console.log('Waiting for Voice module to load...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      attempts++;
+    }
+    if (!Voice._loaded) {
+      console.error('Voice module failed to load after retries');
+      Alert.alert('Erreur', 'Module de reconnaissance vocale non chargé.');
+      speak('Module de reconnaissance vocale non chargé.', 'fr-FR');
+      return;
+    }
+
+    // Set up event listeners
+    Voice.onSpeechStart = () => {
+      console.log('Speech recognition started');
+      setIsRecording(true);
+    };
+    Voice.onSpeechEnd = () => {
+      console.log('Speech recognition ended');
+      setIsRecording(false);
+    };
+    Voice.onSpeechError = (e: any) => {
+      console.error('Speech recognition error:', e);
+      setIsRecording(false);
+      Alert.alert('Erreur', 'Impossible de reconnaître la parole. Veuillez réessayer.');
+      speak('Erreur de reconnaissance vocale. Veuillez réessayer.', 'fr-FR');
+    };
+    Voice.onSpeechResults = (e: any) => {
+      console.log('Speech recognition results:', e);
+      const text = e.value[0]?.toLowerCase();
+      setRecognizedText(text);
+      handleVoiceAnswer(text);
+    };
+  };
+
+  initializeVoice();
+
+  return () => {
+    if (Voice) {
+      Voice.destroy().then(() => {
+        console.log('Voice module destroyed');
+        Voice.removeAllListeners();
+      });
+    }
+  };
+}, []);
 
   useEffect(() => {
     updateBadges();
@@ -416,10 +1411,10 @@ export default function ConseilsSante() {
           {
             text: 'Charger',
             onPress: async () => {
-              setPageQuizzes(1); // Réinitialiser la page pour un nouveau lot
+              setPageQuizzes(1);
               const newQuizzes = await fetchQuizzes(1);
               setQuizzes(newQuizzes);
-              setCompletedQuizzes([]); // Réinitialiser les quiz complétés
+              setCompletedQuizzes([]);
               speak('Quiz chargés !', 'fr-FR');
             },
           },
@@ -580,6 +1575,22 @@ export default function ConseilsSante() {
     }
   };
 
+  const handleVoiceAnswer = (text: string) => {
+    if (!selectedQuiz) return;
+
+    const normalizedText = text.toLowerCase().trim();
+    const matchedOption = selectedQuiz.options.find(option =>
+      option.toLowerCase().includes(normalizedText) || normalizedText.includes(option.toLowerCase())
+    );
+
+    if (matchedOption) {
+      handleQuizAnswer(selectedQuiz, matchedOption);
+    } else {
+      Alert.alert('Non reconnu', 'Votre réponse n’a pas été reconnue. Veuillez réessayer.');
+      speak('Réponse non reconnue. Veuillez réessayer.', 'fr-FR');
+    }
+  };
+
   const toggleFavorite = (conseilId: string) => {
     setFavoriteConseils(prev => {
       if (prev.includes(conseilId)) {
@@ -618,7 +1629,7 @@ export default function ConseilsSante() {
     setRefreshing(true);
     setPageConseils(1);
     setPageQuizzes(1);
-    setCompletedQuizzes([]); // Réinitialiser les quiz complétés
+    setCompletedQuizzes([]);
     const newConseils = await fetchConseils(1);
     const newQuizzes = await fetchQuizzes(1);
     setConseils(newConseils);
@@ -632,14 +1643,8 @@ export default function ConseilsSante() {
       const nextPage = pageConseils + 1;
       setPageConseils(nextPage);
       const newConseils = await fetchConseils(nextPage);
-      if (newConseils.length === conseils
-
-.length) {
-        Alert.alert('Aucun conseil supplémentaire', 'Tous les conseils disponibles ont été chargés.');
-      } else {
-        setConseils(newConseils);
-        speak('Conseils chargés', 'fr-FR');
-      }
+      setConseils(newConseils);
+      speak('Plus de conseils chargés !', 'fr-FR');
     }
   };
 
@@ -648,230 +1653,299 @@ export default function ConseilsSante() {
       const nextPage = pageQuizzes + 1;
       setPageQuizzes(nextPage);
       const newQuizzes = await fetchQuizzes(nextPage);
-      if (newQuizzes.length === quizzes.length) {
-        Alert.alert('Aucun quiz supplémentaire', 'Tous les quiz disponibles ont été chargés.');
-      } else {
-        setQuizzes(newQuizzes);
-        speak('Quiz chargés', 'fr-FR');
-      }
+      setQuizzes(newQuizzes);
+      speak('Plus de quiz chargés !', 'fr-FR');
     }
   };
 
-  const getFilteredConseils = () => {
-    return conseils
-      .filter(conseil => {
-        const matchesSearch =
-          conseil.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          conseil.description.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesFilter = selectedFilter === 'all' || conseil.disease === selectedFilter;
-        return matchesSearch && matchesFilter;
-      })
-      .slice(0, pageConseils * itemsPerPage);
-  };
-
-  const getFilteredQuizzes = () => {
-    return quizzes
-      .filter(quiz => {
-        const matchesFilter = selectedFilter === 'all' || quiz.disease === selectedFilter;
-        return matchesFilter;
-      })
-      .slice(0, pageQuizzes * itemsPerPage);
-  };
-
-  const getDiseaseColor = (disease: 'diabete' | 'hypertension' | 'vih' | 'general') => {
-    const colors: Record<'diabete' | 'hypertension' | 'vih' | 'general', string> = {
-      diabete: '#2196F3',
-      hypertension: '#E91E63',
-      vih: '#FF9800',
-      general: '#4CAF50',
-    };
-    return colors[disease] || '#666';
-  };
-
-  const getDiseaseBackground = (disease: 'diabete' | 'hypertension' | 'vih' | 'general') => {
-    const backgrounds: Record<'diabete' | 'hypertension' | 'vih' | 'general', string> = {
-      diabete: '#E3F2FD',
-      hypertension: '#FCE4EC',
-      vih: '#FFF3E0',
-      general: '#E8F5E8',
-    };
-    return backgrounds[disease] || '#F5F5F5';
-  };
-
-  const renderTabButton = (tab: 'conseils' | 'quiz' | 'badges' | 'progress' | 'challenges', title: string, icon: string) => (
-    <TouchableOpacity
-      style={[styles.tabButton, activeTab === tab && styles.activeTab]}
-      onPress={() => {
-        setActiveTab(tab);
-        Animated.timing(tabAnim, {
-          toValue: tab === 'conseils' ? 0 : tab === 'quiz' ? 1 : tab === 'badges' ? 2 : tab === 'progress' ? 3 : 4,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
-        speak(`Onglet ${title} sélectionné`, 'fr-FR');
-      }}
-      onLongPress={() => speak(title, 'fr-FR')}
-      accessibilityLabel={title}
-      accessibilityHint={`Appuyez pour ouvrir l'onglet ${title}`}
-    >
-      <MaterialIcons name={icon as any} size={18} color={activeTab === tab ? '#FFF' : '#666'} />
-      <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{title}</Text>
-    </TouchableOpacity>
+  const filteredConseils = conseils.filter(conseil =>
+    (selectedFilter === 'all' || conseil.disease === selectedFilter) &&
+    (searchQuery === '' ||
+      conseil.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      conseil.description.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const renderConseil = ({ item }: { item: Conseil }) => (
-    <TouchableOpacity
-      style={[styles.conseilItem, { backgroundColor: getDiseaseBackground(item.disease) }]}
-      onPress={() => {
-        setSelectedConseil(item);
-        setShowDetailsModal(true);
-        speak(item.description, 'fr-FR');
-      }}
-      onLongPress={() => speak(`${item.title}. ${item.description}`, 'fr-FR')}
-      accessibilityLabel={item.title}
-      accessibilityHint="Appuyez pour voir les détails du conseil"
-    >
-      <View style={styles.conseilContent}>
-        <MaterialIcons
-          name={item.category === 'nutrition' ? 'restaurant' : item.category === 'activite' ? 'directions-walk' : item.category === 'education' ? 'info' : 'health-and-safety'}
-          size={32}
-          color={getDiseaseColor(item.disease)}
-        />
-        <View style={styles.conseilText}>
-          <Text style={styles.conseilTitle}>{item.title}</Text>
-          <Text style={styles.conseilDescription} numberOfLines={2}>{item.description}</Text>
-          <Text style={styles.conseilMeta}>{item.points} pts</Text>
-        </View>
-        <TouchableOpacity
-          onPress={() => toggleFavorite(item.id)}
-          accessibilityLabel={favoriteConseils.includes(item.id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
-        >
-          <MaterialIcons
-            name={favoriteConseils.includes(item.id) ? 'favorite' : 'favorite-border'}
-            size={24}
-            color={favoriteConseils.includes(item.id) ? '#F44336' : '#666'}
-          />
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
+  const filteredQuizzes = quizzes.filter
+  (quiz =>
+(selectedFilter === 'all' || quiz.disease === selectedFilter) &&
+(searchQuery === '' ||
+quiz.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+quiz.explanation.toLowerCase().includes(searchQuery.toLowerCase()))
+);
 
-  const renderQuiz = ({ item }: { item: Quiz }) => (
-    <Animated.View style={[styles.quizItem, { opacity: fadeAnim }]}>
-      <Text style={styles.quizQuestion}>{item.question}</Text>
-      {item.options.map(option => (
+
+const stopRecording = async () => {
+try {
+await Voice.stop();
+setIsRecording(false);
+} catch (error) {
+console.error('Erreur arrêt reconnaissance vocale:', error);
+Alert.alert('Erreur', 'Impossible d’arrêter la reconnaissance vocale.');
+speak('Erreur lors de l’arrêt de la reconnaissance vocale.', 'fr-FR');
+}
+};
+
+const renderConseilItem = ({ item }: { item: Conseil }) => (
+<TouchableOpacity
+  style={styles.conseilCard}
+  onPress={() => {
+    setSelectedConseil(item);
+    setShowDetailsModal(true);
+    speak(item.title, 'fr-FR');
+  }}
+>
+  <View style={styles.conseilHeader}>
+    <Text style={styles.conseilTitle}>{item.title}</Text>
+    <TouchableOpacity onPress={() => toggleFavorite(item.id)}>
+      <MaterialIcons
+        name={favoriteConseils.includes(item.id) ? 'favorite' : 'favorite-border'}
+        size={24}
+        color={favoriteConseils.includes(item.id) ? '#ff5252' : '#757575'}
+      />
+    </TouchableOpacity>
+  </View>
+  <Text style={styles.conseilDescription} numberOfLines={2}>
+    {item.description}
+  </Text>
+  <View style={styles.conseilFooter}>
+    <Text style={styles.conseilPoints}>+{item.points} points</Text>
+    <TouchableOpacity onPress={() => shareConseil(item)}>
+      <MaterialIcons name="share" size={20} color="#2196F3" />
+    </TouchableOpacity>
+  </View>
+</TouchableOpacity>
+);
+const renderQuizItem = ({ item }: { item: Quiz }) => (
+  <TouchableOpacity
+    style={[styles.quizCard, completedQuizzes.includes(item.id) && styles.completedQuiz]}
+    onPress={() => {
+      setSelectedQuiz(item);
+      speak(item.question, 'fr-FR');
+    }}
+    disabled={completedQuizzes.includes(item.id)}
+    activeOpacity={0.8}
+  >
+    <Text style={styles.quizQuestion}>{item.question}</Text>
+    <View style={styles.quizOptions}>
+      {item.options.map((option, index) => (
         <TouchableOpacity
-          key={option}
-          style={[styles.quizOption, completedQuizzes.includes(item.id) && styles.quizOptionDisabled]}
+          key={index}
+          style={styles.quizOption}
           onPress={() => handleQuizAnswer(item, option)}
-          onLongPress={() => speak(option, 'fr-FR')}
           disabled={completedQuizzes.includes(item.id)}
         >
           <Text style={styles.quizOptionText}>{option}</Text>
         </TouchableOpacity>
       ))}
-      {completedQuizzes.includes(item.id) && <Text style={styles.quizCompleted}>Quiz complété !</Text>}
-    </Animated.View>
-  );
+    </View>
+    <Text style={styles.quizPoints}>+{item.points} points</Text>
+    {item.timeLimit && (
+      <Text style={styles.quizTimeLimit}>Temps: {item.timeLimit}s</Text>
+    )}
+  </TouchableOpacity>
+);
 
-  const renderBadge = ({ item }: { item: Badge }) => (
-    <View style={[styles.badgeItem, { backgroundColor: item.unlocked ? item.color : '#E0E0E0' }]}>
-      <MaterialIcons name={item.icon as any} size={40} color={item.unlocked ? '#FFF' : '#666'} />
-      <Text style={[styles.badgeName, { color: item.unlocked ? '#FFF' : '#666' }]}>{item.name}</Text>
-      <Text style={[styles.badgeDescription, { color: item.unlocked ? '#FFF' : '#666' }]}>{item.description}</Text>
-      <Text style={[styles.badgeStatus, { color: item.unlocked ? '#FFF' : '#666' }]}>
-        {item.unlocked ? `Débloqué le ${item.dateUnlocked?.split('T')[0]}` : `${item.requiredPoints} points requis`}
+const renderBadgeItem = ({ item }: { item: Badge }) => (
+  <View style={[styles.badgeCard, { backgroundColor: item.unlocked ? item.color : '#E0E0E0' }]}>
+    <MaterialIcons name={item.icon as any} size={40} color={item.unlocked ? '#FFF' : '#757575'} />
+    <Text style={[styles.badgeName, { color: item.unlocked ? '#FFF' : '#757575' }]}>
+      {item.name}
+    </Text>
+    <Text style={[styles.badgeDescription, { color: item.unlocked ? '#FFF' : '#757575' }]}>
+      {item.description}
+    </Text>
+    {item.unlocked && item.dateUnlocked && (
+      <Text style={styles.badgeDate}>
+        Débloqué le {new Date(item.dateUnlocked).toLocaleDateString('fr-FR')}
       </Text>
-    </View>
-  );
+    )}
+  </View>
+);
 
-  const renderProgress = () => (
-    <View style={styles.progressContainer}>
-      <Text style={styles.sectionTitle}>Votre Progression</Text>
-      <View style={styles.progressItem}>
-        <Text style={styles.progressLabel}>Série de jours : </Text>
-        <Text style={styles.progressValue}>{userProgress.streak} jours</Text>
-      </View>
-      <View style={styles.progressItem}>
-        <Text style={styles.progressLabel}>Quiz complétés aujourd'hui : </Text>
-        <Text style={styles.progressValue}>{userProgress.completedToday}</Text>
-      </View>
-      <View style={styles.progressItem}>
-        <Text style={styles.progressLabel}>Objectif hebdomadaire : </Text>
-        <Text style={styles.progressValue}>{userProgress.completedToday}/{userProgress.weeklyGoal} quiz</Text>
-      </View>
-      <View style={styles.progressItem}>
-        <Text style={styles.progressLabel}>Points totaux : </Text>
-        <Text style={styles.progressValue}>{userPoints} points</Text>
-      </View>
-    </View>
-  );
+const renderChallengeItem = ({ item }: { item: Challenge }) => (
+  <View style={styles.challengeCard}>
+    <Text style={styles.challengeTitle}>{item.title}</Text>
+    <Text style={styles.challengeDescription}>{item.description}</Text>
+    <Text style={styles.challengeProgress}>
+      Progrès: {item.current}/{item.target}
+    </Text>
+    <Text style={styles.challengeReward}>Récompense: {item.reward} points</Text>
+    <Text style={styles.challengeDeadline}>Échéance: {item.deadline}</Text>
+  </View>
+);
+const renderProgress = () => (
+  <View style={styles.progressContainer}>
+    <Text style={styles.progressTitle}>Votre Progression</Text>
+    <Text style={styles.progressText}>Points totaux: {userPoints}</Text>
+    <Text style={styles.progressText}>Série de jours: {userProgress.streak}</Text>
+    <Text style={styles.progressText}>Quiz complétés aujourd'hui: {userProgress.completedToday}</Text>
+    <Text style={styles.progressText}>Objectif hebdomadaire: {userProgress.weeklyGoal} conseils</Text>
+    <Text style={styles.progressTitle}>Statistiques Mensuelles</Text>
+    {Object.entries(userProgress.monthlyStats).map(([date, count]) => (
+      <Text key={date} style={styles.progressText}>
+        {date}: {count} quiz complétés
+      </Text>
+    ))}
+  </View>
+);
+const handleTabSwitch = (tab: 'conseils' | 'quiz' | 'badges' | 'progress' | 'challenges') => {
+  setActiveTab(tab);
+  Animated.timing(tabAnim, {
+    toValue: ['conseils', 'quiz', 'badges', 'progress', 'challenges'].indexOf(tab) * (width / 5),
+    duration: 300,
+    useNativeDriver: true,
+  }).start();
+  speak(`Onglet ${tab} sélectionné`, 'fr-FR');
+};
 
-  const renderChallenge = ({ item }: { item: Challenge }) => (
-    <View style={styles.challengeItem}>
-      <Text style={styles.challengeTitle}>{item.title}</Text>
-      <Text style={styles.challengeDescription}>{item.description}</Text>
-      <Text style={styles.challengeProgress}>Progrès : {item.current}/{item.target}</Text>
-      <Text style={styles.challengeReward}>Récompense : {item.reward} points</Text>
-      <Text style={styles.challengeDeadline}>Échéance : {item.deadline}</Text>
+return (
+  <View style={styles.container}>
+    <View style={styles.header}>
+      <Text style={styles.headerTitle}>Yafa Santé</Text>
+      <Text style={styles.points}>Points: {userPoints}</Text>
     </View>
-  );
 
-  const renderModal = () => (
-    <Modal visible={showDetailsModal} transparent animationType="slide" onRequestClose={() => setShowDetailsModal(false)}>
-      <View style={styles.modalOverlay}>
+    <View style={styles.searchContainer}>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Rechercher conseils ou quiz..."
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+      <TouchableOpacity onPress={startRecording} style={styles.micButton}>
+        <MaterialIcons
+          name={isRecording ? 'mic' : 'mic-off'}
+          size={24}
+          color={isRecording ? '#ff5252' : '#757575'}
+        />
+      </TouchableOpacity>
+    </View>
+
+    <View style={styles.filterContainer}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <TouchableOpacity
+          style={[styles.filterButton, selectedFilter === 'all' && styles.activeFilter]}
+          onPress={() => setSelectedFilter('all')}
+        >
+          <Text style={styles.filterText}>Tous</Text>
+        </TouchableOpacity>
+        {[...new Set(conseils.map(c => c.disease))].map(disease => (
+          <TouchableOpacity
+            key={disease}
+            style={[styles.filterButton, selectedFilter === disease && styles.activeFilter]}
+            onPress={() => setSelectedFilter(disease as Disease)}
+          >
+            <Text style={styles.filterText}>{disease}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+
+    <View style={styles.tabContainer}>
+      {['conseils', 'quiz', 'badges', 'progress', 'challenges'].map(tab => (
+        <TouchableOpacity
+          key={tab}
+          style={styles.tabButton}
+          onPress={() => handleTabSwitch(tab as 'conseils' | 'quiz' | 'badges' | 'progress' | 'challenges')}
+        >
+          <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
+            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+          </Text>
+        </TouchableOpacity>
+      ))}
+      <Animated.View
+        style={[
+          styles.tabIndicator,
+          { transform: [{ translateX: tabAnim }] },
+        ]}
+      />
+    </View>
+    <Animated.View style={[styles.contentContainer, { opacity: fadeAnim }]}>
+      {loading && <ActivityIndicator size="large" color="#2196F3" />}
+      {activeTab === 'conseils' && (
+        <FlatList
+          data={filteredConseils}
+          renderItem={renderConseilItem}
+          keyExtractor={item => item.id}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          onEndReached={loadMoreConseils}
+          onEndReachedThreshold={0.5}
+          ListEmptyComponent={<Text style={styles.emptyText}>Aucun conseil trouvé.</Text>}
+        />
+      )}
+      {activeTab === 'quiz' && (
+        <FlatList
+          data={filteredQuizzes}
+          renderItem={renderQuizItem}
+          keyExtractor={item => item.id}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          onEndReached={loadMoreQuizzes}
+          onEndReachedThreshold={0.5}
+          ListEmptyComponent={<Text style={styles.emptyText}>Aucun quiz trouvé.</Text>}
+        />
+      )}
+      {activeTab === 'badges' && (
+        <FlatList
+          data={badges}
+          renderItem={renderBadgeItem}
+          keyExtractor={item => item.id}
+          numColumns={2}
+          ListEmptyComponent={<Text style={styles.emptyText}>Aucun badge disponible.</Text>}
+        />
+      )}
+      {activeTab === 'progress' && renderProgress()}
+      {activeTab === 'challenges' && (
+        <FlatList
+          data={challenges}
+          renderItem={renderChallengeItem}
+          keyExtractor={item => item.id}
+          ListEmptyComponent={<Text style={styles.emptyText}>Aucun défi disponible.</Text>}
+        />
+      )}
+    </Animated.View>
+
+    <Modal
+      visible={showDetailsModal}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setShowDetailsModal(false)}
+    >
+      <View style={styles.modalContainer}>
         <View style={styles.modalContent}>
           {selectedConseil && (
             <>
               <Text style={styles.modalTitle}>{selectedConseil.title}</Text>
               <Text style={styles.modalDescription}>{selectedConseil.description}</Text>
-              <Text style={styles.modalMeta}>{selectedConseil.points} points</Text>
               {selectedConseil.tips && (
-                <View style={styles.modalTips}>
-                  <Text style={styles.modalTipsTitle}>Conseils pratiques :</Text>
+                <View style={styles.tipsContainer}>
+                  <Text style={styles.tipsTitle}>Conseils Pratiques:</Text>
                   {selectedConseil.tips.map((tip, index) => (
-                    <Text key={index} style={styles.modalTipItem}>• {tip}</Text>
+                    <Text key={index} style={styles.tipText}>• {tip}</Text>
                   ))}
                 </View>
               )}
-              {selectedConseil.relatedLinks && selectedConseil.relatedLinks.length > 0 && (
-                <View style={styles.modalLinks}>
-                  <Text style={styles.modalTipsTitle}>Liens utiles :</Text>
+              {selectedConseil.relatedLinks && (
+                <View style={styles.linksContainer}>
+                  <Text style={styles.linksTitle}>Liens Utiles:</Text>
                   {selectedConseil.relatedLinks.map((link, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      onPress={() => Linking.openURL(link).catch(() => Alert.alert('Erreur', 'Impossible d’ouvrir le lien'))}
-                      onLongPress={() => speak(`Ouvrir le lien ${link}`, 'fr-FR')}
-                      accessibilityLabel={`Lien vers ${link}`}
-                    >
-                      <Text style={styles.modalLinkItem}>{link}</Text>
+                    <TouchableOpacity key={index} onPress={() => Linking.openURL(link)}>
+                      <Text style={styles.linkText}>{link}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               )}
-              <View style={styles.modalActions}>
-                <TouchableOpacity style={styles.modalButton} onPress={() => shareConseil(selectedConseil)}>
-                  <MaterialIcons name="share" size={20} color="#FFF" />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.modalButton}
+                  onPress={() => {
+                    shareConseil(selectedConseil);
+                    setShowDetailsModal(false);
+                  }}
+                >
                   <Text style={styles.modalButtonText}>Partager</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.modalButton}
-                  onPress={() => {
-                    toggleFavorite(selectedConseil.id);
-                    setShowDetailsModal(false);
-                  }}
-                >
-                  <MaterialIcons
-                    name={favoriteConseils.includes(selectedConseil.id) ? 'favorite' : 'favorite-border'}
-                    size={20}
-                    color="#FFF"
-                  />
-                  <Text style={styles.modalButtonText}>
-                    {favoriteConseils.includes(selectedConseil.id) ? 'Retirer' : 'Ajouter aux favoris'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButton, { backgroundColor: '#F44336' }]}
                   onPress={() => setShowDetailsModal(false)}
                 >
                   <Text style={styles.modalButtonText}>Fermer</Text>
@@ -882,502 +1956,319 @@ export default function ConseilsSante() {
         </View>
       </View>
     </Modal>
-  );
-
-  return (
-    <View style={styles.container}>
-      {/* En-tête */}
-      <View style={styles.header}>
-        <View style={styles.headerTextContainer}>
-          <Text style={styles.headerText}>Yafa Conseils Santé</Text>
-        </View>
-      
-      </View>
-
-      {/* Barre de recherche et filtres */}
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Rechercher un conseil..."
-          accessibilityLabel="Rechercher un conseil"
-          accessibilityHint="Entrez un mot-clé pour filtrer les conseils"
-        />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterContainer}>
-          {['all', 'diabete', 'hypertension', 'vih', 'general'].map(filter => (
-            <TouchableOpacity
-              key={filter}
-              style={[styles.filterButton, selectedFilter === filter && styles.activeFilter]}
-              onPress={() => setSelectedFilter(filter as any)}
-              onLongPress={() => speak(filter === 'all' ? 'Tous' : filter.charAt(0).toUpperCase() + filter.slice(1), 'fr-FR')}
-              accessibilityLabel={filter === 'all' ? 'Tous' : filter.charAt(0).toUpperCase() + filter.slice(1)}
-            >
-              <Text style={[styles.filterText, selectedFilter === filter && styles.activeFilterText]}>
-                {filter === 'all' ? 'Tous' : filter.charAt(0).toUpperCase() + filter.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Onglets */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabContainer}>
-        {renderTabButton('conseils', 'Conseils', 'restaurant')}
-        {renderTabButton('quiz', 'Quiz', 'help')}
-        {renderTabButton('badges', 'Badges', 'emoji-events')}
-        {renderTabButton('progress', 'Progrès', 'trending-up')}
-        {renderTabButton('challenges', 'Défis', 'star')}
-      </ScrollView>
-
-      {/* Contenu */}
-      <Animated.View style={[styles.content, { opacity: tabAnim.interpolate({ inputRange: [0, 4], outputRange: [1, 0.8] }) }]}>
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#4CAF50" />
-            <Text style={styles.loadingText}>Chargement des données...</Text>
-          </View>
-        ) : (
-          <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-            {activeTab === 'conseils' && (
-              <FlatList
-                data={getFilteredConseils()}
-                renderItem={renderConseil}
-                keyExtractor={item => item.id}
-                ListHeaderComponent={
-                  <View style={styles.statsContainer}>
-                    <Text style={styles.statsText}>Points : {userPoints}</Text>
-                    <Text style={styles.statsText}>Favoris : {favoriteConseils.length}</Text>
-                  </View>
-                }
-                ListFooterComponent={
-                  <TouchableOpacity style={styles.loadMoreButton} onPress={loadMoreConseils} disabled={loading}>
-                    <Text style={styles.loadMoreText}>Charger plus de conseils</Text>
-                  </TouchableOpacity>
-                }
-                ListEmptyComponent={<Text style={styles.emptyText}>Aucun conseil trouvé.</Text>}
-              />
-            )}
-            {activeTab === 'quiz' && (
-              <FlatList
-                data={getFilteredQuizzes()}
-                renderItem={renderQuiz}
-                keyExtractor={item => item.id}
-                ListHeaderComponent={
-                  <View style={styles.statsContainer}>
-                    <Text style={styles.statsText}>Quiz complétés : {completedQuizzes.length}</Text>
-                  </View>
-                }
-                ListFooterComponent={
-                  quizzes.every(quiz => completedQuizzes.includes(quiz.id)) ? (
-                    <TouchableOpacity style={styles.loadMoreButton} onPress={loadMoreQuizzes} disabled={loading}>
-                      <Text style={styles.loadMoreText}>Charger plus de quiz</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity style={styles.loadMoreButton} onPress={loadMoreQuizzes} disabled={loading}>
-                      <Text style={styles.loadMoreText}>Charger plus de quiz</Text>
-                    </TouchableOpacity>
-                  )
-                }
-                ListEmptyComponent={<Text style={styles.emptyText}>Aucun quiz trouvé.</Text>}
-              />
-            )}
-            {activeTab === 'badges' && (
-              <FlatList
-                data={badges}
-                renderItem={renderBadge}
-                keyExtractor={item => item.id}
-                numColumns={2}
-                ListHeaderComponent={
-                  <View style={styles.statsContainer}>
-                    <Text style={styles.statsText}>Badges débloqués : {badges.filter(b => b.unlocked).length}</Text>
-                  </View>
-                }
-              />
-            )}
-            {activeTab === 'progress' && renderProgress()}
-            {activeTab === 'challenges' && (
-              <FlatList
-                data={challenges}
-                renderItem={renderChallenge}
-                keyExtractor={item => item.id}
-                ListHeaderComponent={
-                  <View style={styles.statsContainer}>
-                    <Text style={styles.statsText}>Défis en cours : {challenges.length}</Text>
-                  </View>
-                }
-              />
-            )}
-          </ScrollView>
-        )}
-      </Animated.View>
-
-      {/* Modal pour détails du conseil */}
-      {renderModal()}
-    </View>
-  );
+  </View>
+);
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8F9FA',
-  },
-  header: {
-    backgroundColor: '#4CAF50',
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  headerTextContainer: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerText: {
-    color: '#FFF',
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  searchContainer: {
-    padding: 16,
-    backgroundColor: '#FFF',
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  searchInput: {
-    backgroundColor: '#F0F0F0',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    marginBottom: 12,
-  },
-  filterContainer: {
-    flexGrow: 0,
-    marginBottom: 8,
-  },
-  filterButton: {
-    backgroundColor: '#F0F0F0',
-    borderRadius: 8,
-    padding: 8,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  activeFilter: {
-    backgroundColor: '#4CAF50',
-  },
-  filterText: {
-    color: '#333',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  activeFilterText: {
-    color: '#FFF',
-  },
-  tabContainer: {
-    flexGrow: 0,
-    paddingHorizontal: 16,
-    marginBottom: 8,
-  },
-  tabButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0F0F0',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginRight: 8,
-  },
-  activeTab: {
-    backgroundColor: '#4CAF50',
-  },
-  tabText: {
-    color: '#666',
-    fontSize: 14,
-    marginLeft: 4,
-    fontWeight: '500',
-  },
-  activeTabText: {
-    color: '#FFF',
-  },
-  content: {
-    flex: 1,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 16,
-  },
-  statsText: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '500',
-  },
-  conseilItem: {
-    borderRadius: 12,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  conseilContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-  },
-  conseilText: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  conseilTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  conseilDescription: {
-    fontSize: 14,
-    color: '#666',
-  },
-  conseilMeta: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: 4,
-  },
-  quizItem: {
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  quizQuestion: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 12,
-  },
-  quizOption: {
-    backgroundColor: '#F0F0F0',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-  },
-  quizOptionDisabled: {
-    backgroundColor: '#E0E0E0',
-    opacity: 0.6,
-  },
-  quizOptionText: {
-    fontSize: 14,
-    color: '#333',
-  },
-  quizCompleted: {
-    fontSize: 14,
-    color: '#4CAF50',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  badgeItem: {
-    flex: 1,
-    margin: 8,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  badgeName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginTop: 8,
-  },
-  badgeDescription: {
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  badgeStatus: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  progressContainer: {
-    padding: 16,
-  },
-  progressItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  progressLabel: {
-    fontSize: 16,
-    color: '#333',
-  },
-  progressValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-  },
-  challengeItem: {
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  challengeTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  challengeDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
-  },
-  challengeProgress: {
-    fontSize: 14,
-    color: '#4CAF50',
-    marginBottom: 4,
-  },
-  challengeReward: {
-    fontSize: 14,
-    color: '#FF9800',
-    marginBottom: 4,
-  },
-  challengeDeadline: {
-    fontSize: 12,
-    color: '#999',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 20,
-    width: width * 0.9,
-    maxHeight: '80%',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 12,
-  },
-  modalDescription: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 12,
-  },
-  modalMeta: {
-    fontSize: 14,
-    color: '#999',
-    marginBottom: 12,
-  },
-  modalTips: {
-    marginBottom: 12,
-  },
-  modalTipsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-  },
-  modalTipItem: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
-  },
-  modalLinks: {
-    marginBottom: 12,
-  },
-  modalLinkItem: {
-    fontSize: 14,
-    color: '#2196F3',
-    textDecorationLine: 'underline',
-    marginBottom: 4,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 16,
-  },
-  modalButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#4CAF50',
-    borderRadius: 8,
-    padding: 10,
-  },
-  modalButtonText: {
-    color: '#FFF',
-    fontSize: 14,
-    marginLeft: 4,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 20,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#333',
-    marginTop: 10,
-  },
-  loadMoreButton: {
-    backgroundColor: '#4CAF50',
-    borderRadius: 8,
-    padding: 12,
-    margin: 16,
-    alignItems: 'center',
-  },
-  loadMoreText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+container: {
+flex: 1,
+backgroundColor: '#F5F5F5',
+},
+header: {
+flexDirection: 'row',
+justifyContent: 'space-between',
+alignItems: 'center',
+padding: 16,
+backgroundColor: '#4CAF50',
+},
+headerTitle: {
+fontSize: 24,
+fontWeight: 'bold',
+color: '#FFF',
+},
+points: {
+fontSize: 18,
+color: '#FFF',
+},
+searchContainer: {
+flexDirection: 'row',
+alignItems: 'center',
+padding: 10,
+backgroundColor: '#FFF',
+marginHorizontal: 10,
+borderRadius: 8,
+marginVertical: 10,
+},
+searchInput: {
+flex: 1,
+fontSize: 16,
+padding: 8,
+},
+micButton: {
+padding: 8,
+},
+filterContainer: {
+paddingHorizontal: 10,
+marginBottom: 10,
+},
+filterButton: {
+paddingVertical: 8,
+paddingHorizontal: 16,
+marginRight: 8,
+backgroundColor: '#E0E0E0',
+borderRadius: 20,
+},
+activeFilter: {
+backgroundColor: '#4CAF50',
+},
+filterText: {
+fontSize: 14,
+color: '#000',
+},
+tabContainer: {
+flexDirection: 'row',
+justifyContent: 'space-around',
+backgroundColor: '#FFF',
+paddingVertical: 10,
+},
+tabButton: {
+flex: 1,
+alignItems: 'center',
+paddingVertical: 10,
+},
+tabText: {
+fontSize: 16,
+color: '#757575',
+},
+activeTabText: {
+color: '#4CAF50',
+fontWeight: 'bold',
+},
+tabIndicator: {
+position: 'absolute',
+bottom: 0,
+height: 3,
+width: width / 5,
+backgroundColor: 'green',
+},
+contentContainer: {
+flex: 1,
+paddingHorizontal: 10,
+},
+conseilCard: {
+backgroundColor: '#FFF',
+padding: 15,
+marginVertical: 8,
+borderRadius: 10,
+shadowColor: '#000',
+shadowOffset: { width: 0, height: 2 },
+shadowOpacity: 0.1,
+shadowRadius: 4,
+elevation: 3,
+},
+conseilHeader: {
+flexDirection: 'row',
+justifyContent: 'space-between',
+alignItems: 'center',
+},
+conseilTitle: {
+fontSize: 18,
+fontWeight: 'bold',
+flex: 1,
+},
+conseilDescription: {
+fontSize: 14,
+color: '4CAF50  ',
+marginVertical: 8,
+},
+conseilFooter: {
+flexDirection: 'row',
+justifyContent: 'space-between',
+alignItems: 'center',
+},
+conseilPoints: {
+fontSize: 14,
+color: '#4CAF50',
+},
+quizCard: {
+backgroundColor: '#FFF',
+padding: 15,
+marginVertical: 8,
+borderRadius: 10,
+shadowColor: '#000',
+shadowOffset: { width: 0, height: 2 },
+shadowOpacity: 0.1,
+shadowRadius: 4,
+elevation: 3,
+},
+completedQuiz: {
+backgroundColor: '4CAF50  ',
+opacity: 0.7,
+},
+quizQuestion: {
+fontSize: 18,
+fontWeight: 'bold',
+marginBottom: 10,
+},
+quizOptions: {
+marginVertical: 10,
+},
+quizOption: {
+padding: 10,
+backgroundColor: '#F5F5F5',
+borderRadius: 5,
+marginVertical: 5,
+},
+quizOptionText: {
+fontSize: 16,
+color: '#333',
+},
+quizPoints: {
+fontSize: 14,
+color: '#4CAF50',
+marginTop: 10,
+},
+quizTimeLimit: {
+fontSize: 14,
+color: '#FF5252',
+},
+badgeCard: {
+flex: 1,
+margin: 8,
+padding: 15,
+borderRadius: 10,
+alignItems: 'center',
+justifyContent: 'center',
+shadowColor: '#000',
+shadowOffset: { width: 0, height: 2 },
+shadowOpacity: 0.1,
+shadowRadius: 4,
+elevation: 3,
+},
+badgeName: {
+fontSize: 16,
+fontWeight: 'bold',
+marginVertical: 8,
+},
+badgeDescription: {
+fontSize: 14,
+textAlign: 'center',
+},
+badgeDate: {
+fontSize: 12,
+color: '#FFF',
+marginTop: 8,
+},
+challengeCard: {
+backgroundColor: '#FFF',
+padding: 15,
+marginVertical: 8,
+borderRadius: 10,
+shadowColor: '#000',
+shadowOffset: { width: 0, height: 2 },
+shadowOpacity: 0.1,
+shadowRadius: 4,
+elevation: 3,
+},
+challengeTitle: {
+fontSize: 18,
+fontWeight: 'bold',
+},
+challengeDescription: {
+fontSize: 14,
+color: '#555',
+marginVertical: 8,
+},
+challengeProgress: {
+fontSize: 14,
+color: '#2196F3',
+},
+challengeReward: {
+fontSize: 14,
+color: '#4CAF50',
+},
+challengeDeadline: {
+fontSize: 14,
+color: '#FF5252',
+},
+progressContainer: {
+padding: 15,
+backgroundColor: '#FFF',
+borderRadius: 10,
+margin: 10,
+shadowColor: '#000',
+shadowOffset: { width: 0, height: 2 },
+shadowOpacity: 0.1,
+shadowRadius: 4,
+elevation: 3,
+},
+progressTitle: {
+fontSize: 18,
+fontWeight: 'bold',
+marginBottom: 10,
+},
+progressText: {
+fontSize: 16,
+marginVertical: 5,
+},
+modalContainer: {
+flex: 1,
+justifyContent: 'center',
+alignItems: 'center',
+backgroundColor: 'rgba(0, 0, 0, 0.5)',
+},
+modalContent: {
+backgroundColor: '#FFF',
+padding: 20,
+borderRadius: 10,
+width: '90%',
+maxHeight: '80%',
+},
+modalTitle: {
+fontSize: 20,
+fontWeight: 'bold',
+marginBottom: 10,
+},
+modalDescription: {
+fontSize: 16,
+color: '#555',
+marginBottom: 10,
+},
+tipsContainer: {
+marginVertical: 10,
+},
+tipsTitle: {
+fontSize: 16,
+fontWeight: 'bold',
+marginBottom: 5,
+},
+tipText: {
+fontSize: 14,
+color: '#333',
+marginVertical: 2,
+},
+linksContainer: {
+marginVertical: 10,
+},
+linksTitle: {
+fontSize: 16,
+fontWeight: 'bold',
+marginBottom: 5,
+},
+linkText: {
+fontSize: 14,
+color: '#2196F3',
+marginVertical: 2,
+},
+modalButtons: {
+flexDirection: 'row',
+justifyContent: 'space-around',
+marginTop: 20,
+},
+modalButton: {
+padding: 10,
+backgroundColor: '#2196F0',
+borderRadius: 5,
+},
+modalButtonText: {
+color: '#FFF',
+fontSize: 16,
+},
+emptyText: {
+fontSize: 16,
+color: '#757575',
+textAlign: 'center',
+marginTop: 20,
+},
 });
